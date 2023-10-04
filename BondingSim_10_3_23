@@ -10,10 +10,49 @@ def bonding_event(rdpx_in_lp, daily_bonded_eth_value, total_rdpx_supply, treasur
                            (treasury_rdpx_reserves ** 0.5) * re_lp_factor) / total_rdpx_supply
     return amount_rdpx_removed
 
-def sensitivity_analysis(parameter_name, min_value, max_value, step_size):
+def simulate_daily_events(rdpx_price_in_usd, eth_price_in_usd, total_liquidity_usd,
+                          number_of_days, total_usd_value_bonded, total_rdpx_supply,
+                          treasury_rdpx_reserves, re_lp_factor, max_pool_usd_value):
+
+    initial_rdpx_amount = total_liquidity_usd / (2 * rdpx_price_in_usd)
+    initial_eth_amount = total_liquidity_usd / (2 * eth_price_in_usd)
+
+    rdpx_amount = initial_rdpx_amount
+    eth_amount = initial_eth_amount
+
+    daily_bonded_eth_value = (total_usd_value_bonded / 30) / eth_price_in_usd
+
+    usd_prices = []
+    daily_pool_values = []
+
+    for day in range(number_of_days):
+        amount_rdpx_removed = bonding_event(rdpx_amount, daily_bonded_eth_value,
+                                            total_rdpx_supply, treasury_rdpx_reserves, re_lp_factor)
+        rdpx_amount -= amount_rdpx_removed
+
+        rdpx_price_in_usd = (eth_amount / rdpx_amount) * eth_price_in_usd
+        usd_prices.append(rdpx_price_in_usd)
+
+        half_daily_bonded_usd_value = (daily_bonded_eth_value * eth_price_in_usd) / 2
+        potential_eth_amount = eth_amount + (half_daily_bonded_usd_value / eth_price_in_usd)
+        potential_rdpx_amount = rdpx_amount + (half_daily_bonded_usd_value / rdpx_price_in_usd)
+        potential_pool_value = (potential_eth_amount * eth_price_in_usd) + (potential_rdpx_amount * rdpx_price_in_usd)
+        
+        if potential_pool_value <= max_pool_usd_value:
+            eth_amount = potential_eth_amount
+            rdpx_amount = potential_rdpx_amount
+
+        # After updating rdpx_amount and eth_amount:
+        daily_pool_value = (rdpx_amount * rdpx_price_in_usd) + (eth_amount * eth_price_in_usd)
+        daily_pool_values.append(daily_pool_value)     
+
+    return {
+      'usd_prices': usd_prices,
+      'daily_pool_values': daily_pool_values}
+
+def sensitivity_analysis(parameter_name, min_value, max_value, step_size, max_pool_usd_value):
     results_dict = {}
 
-    # Define the default values for the parameters
     default_rdpx_price_in_usd = 20
     default_eth_price_in_usd = 1600
     default_total_liquidity_usd = 3000000
@@ -22,174 +61,48 @@ def sensitivity_analysis(parameter_name, min_value, max_value, step_size):
     default_total_rdpx_supply = 2200000
     default_treasury_rdpx_reserves = 800000
     default_re_lp_factor = 0.09
-    rdpx_price_in_usd = 20
-
-
-    # Define parameters for bonding
-    total_usd_value_bonded = 4000000  # Total USD value bonded over 30 days
-    total_rdpx_supply = 2.2e6
-    treasury_rdpx_reserves = 800000
-    re_lp_factor = 0.09
-
-
-
 
     for value in np.arange(min_value, max_value + step_size, step_size):
-        if parameter_name == 'rdpx_price_in_usd':
-            results = simulate_daily_events(
-                rdpx_price_in_usd=value,
-                eth_price_in_usd=default_eth_price_in_usd,
-                total_liquidity_usd=default_total_liquidity_usd,
-                number_of_days=default_number_of_days,
-                total_usd_value_bonded=default_total_usd_value_bonded,
-                total_rdpx_supply=default_total_rdpx_supply,
-                treasury_rdpx_reserves=default_treasury_rdpx_reserves,
-                re_lp_factor=default_re_lp_factor
-            )
-        elif parameter_name == 'eth_price_in_usd':
-            results = simulate_daily_events(
-                rdpx_price_in_usd=default_rdpx_price_in_usd,
-                eth_price_in_usd=value,
-                total_liquidity_usd=default_total_liquidity_usd,
-                number_of_days=default_number_of_days,
-                total_usd_value_bonded=default_total_usd_value_bonded,
-                total_rdpx_supply=default_total_rdpx_supply,
-                treasury_rdpx_reserves=default_treasury_rdpx_reserves,
-                re_lp_factor=default_re_lp_factor
-            )
-        elif parameter_name == 'total_liquidity_usd':
-            results = simulate_daily_events(
-                rdpx_price_in_usd=default_rdpx_price_in_usd,
-                eth_price_in_usd=default_eth_price_in_usd,
-                total_liquidity_usd=value,
-                number_of_days=default_number_of_days,
-                total_usd_value_bonded=default_total_usd_value_bonded,
-                total_rdpx_supply=default_total_rdpx_supply,
-                treasury_rdpx_reserves=default_treasury_rdpx_reserves,
-                re_lp_factor=default_re_lp_factor
-            )
-        elif parameter_name == 'number_of_days':
-            results = simulate_daily_events(
-                rdpx_price_in_usd=default_rdpx_price_in_usd,
-                eth_price_in_usd=default_eth_price_in_usd,
-                total_liquidity_usd=default_total_liquidity_usd,
-                number_of_days=value,
-                total_usd_value_bonded=default_total_usd_value_bonded,
-                total_rdpx_supply=default_total_rdpx_supply,
-                treasury_rdpx_reserves=default_treasury_rdpx_reserves,
-                re_lp_factor=default_re_lp_factor
-            )
-        elif parameter_name == 'total_usd_value_bonded':
-            results = simulate_daily_events(
-                rdpx_price_in_usd=default_rdpx_price_in_usd,
-                eth_price_in_usd=default_eth_price_in_usd,
-                total_liquidity_usd=default_total_liquidity_usd,
-                number_of_days=default_number_of_days,
-                total_usd_value_bonded=value,
-                total_rdpx_supply=default_total_rdpx_supply,
-                treasury_rdpx_reserves=default_treasury_rdpx_reserves,
-                re_lp_factor=default_re_lp_factor
-            )
-        elif parameter_name == 'total_rdpx_supply':
-            results = simulate_daily_events(
-                rdpx_price_in_usd=default_rdpx_price_in_usd,
-                eth_price_in_usd=default_eth_price_in_usd,
-                total_liquidity_usd=default_total_liquidity_usd,
-                number_of_days=default_number_of_days,
-                total_usd_value_bonded=default_total_usd_value_bonded,
-                total_rdpx_supply=value,
-                treasury_rdpx_reserves=default_treasury_rdpx_reserves,
-                re_lp_factor=default_re_lp_factor
-            )
-        elif parameter_name == 'treasury_rdpx_reserves':
-            results = simulate_daily_events(
-                rdpx_price_in_usd=default_rdpx_price_in_usd,
-                eth_price_in_usd=default_eth_price_in_usd,
-                total_liquidity_usd=default_total_liquidity_usd,
-                number_of_days=default_number_of_days,
-                total_usd_value_bonded=default_total_usd_value_bonded,
-                total_rdpx_supply=default_total_rdpx_supply,
-                treasury_rdpx_reserves=value,
-                re_lp_factor=default_re_lp_factor
-            )
-        elif parameter_name == 're_lp_factor':
-            results = simulate_daily_events(
-                rdpx_price_in_usd=default_rdpx_price_in_usd,
-                eth_price_in_usd=default_eth_price_in_usd,
-                total_liquidity_usd=default_total_liquidity_usd,
-                number_of_days=default_number_of_days,
-                total_usd_value_bonded=default_total_usd_value_bonded,
-                total_rdpx_supply=default_total_rdpx_supply,
-                treasury_rdpx_reserves=default_treasury_rdpx_reserves,
-                re_lp_factor=value
-            )
-        else:
-            raise ValueError(f"Unsupported parameter_name: {parameter_name}")
+        parameters = {
+            'rdpx_price_in_usd': default_rdpx_price_in_usd,
+            'eth_price_in_usd': default_eth_price_in_usd,
+            'total_liquidity_usd': default_total_liquidity_usd,
+            'number_of_days': default_number_of_days,
+            'total_usd_value_bonded': default_total_usd_value_bonded,
+            'total_rdpx_supply': default_total_rdpx_supply,
+            'treasury_rdpx_reserves': default_treasury_rdpx_reserves,
+            're_lp_factor': default_re_lp_factor,
+            'max_pool_usd_value': max_pool_usd_value
+        }
+        parameters[parameter_name] = value
 
+        results = simulate_daily_events(**parameters)
         results_dict[value] = results
 
     return results_dict
 
-
-
-
-def simulate_daily_events(rdpx_price_in_usd, eth_price_in_usd, total_liquidity_usd,
-                           number_of_days, total_usd_value_bonded, total_rdpx_supply,
-                           treasury_rdpx_reserves, re_lp_factor):
-
-    initial_rdpx_amount = total_liquidity_usd / (2 * rdpx_price_in_usd)
-    initial_eth_amount = total_liquidity_usd / (2 * eth_price_in_usd)
-
-    rdpx_amount = initial_rdpx_amount
-    eth_amount = initial_eth_amount
-
-    # Calculate the daily bonded ETH value from the total USD value bonded
-    daily_bonded_eth_value = (total_usd_value_bonded / 30) / eth_price_in_usd
-
-    usd_prices = []
-
-    for day in range(number_of_days):
-        # Bonding event
-        amount_rdpx_removed = bonding_event(rdpx_amount, daily_bonded_eth_value,
-                                            total_rdpx_supply, treasury_rdpx_reserves, re_lp_factor)
-        rdpx_amount -= amount_rdpx_removed
-
-        # Update the price of RDPX in USD
-        rdpx_price_in_usd = (eth_amount / rdpx_amount) * eth_price_in_usd
-        usd_prices.append(rdpx_price_in_usd)
-
-    return {
-        'usd_prices': usd_prices,
-    }
-
-# Define simulation parameters
 rdpx_price_in_usd = 20
 eth_price_in_usd = 1600
 total_liquidity_usd = 3000000
 number_of_days = 30
 num_replications = 1
-
-# Define parameters for bonding
-total_usd_value_bonded = 4000000  # Total USD value bonded over 30 days
+total_usd_value_bonded = 4000000
 total_rdpx_supply = 2.2e6
 treasury_rdpx_reserves = 800000
 re_lp_factor = 0.09
+max_pool_usd_value = 5000000
 
-# Run the simulation with the defined parameters
 results = []
 for _ in range(num_replications):
     result = simulate_daily_events(
         rdpx_price_in_usd, eth_price_in_usd, total_liquidity_usd,
         number_of_days, total_usd_value_bonded, total_rdpx_supply,
-        treasury_rdpx_reserves, re_lp_factor
+        treasury_rdpx_reserves, re_lp_factor, max_pool_usd_value
     )
     results.append(result)
 
-# Plotting and summarizing results
 days = list(range(1, number_of_days + 1))
-
 plt.figure(figsize=(12, 5))
-
 plt.subplot(2, 1, 1)
 for res in results:
     plt.plot(days, res['usd_prices'], linewidth=2)
@@ -198,28 +111,31 @@ plt.xlabel('Day')
 plt.ylabel('RDPX Price (USD)')
 plt.grid(True, linestyle='--', alpha=0.7)
 
+# New subplot for daily pool value
+plt.subplot(2, 1, 2)
+for res in results:
+    plt.plot(days, res['daily_pool_values'], linewidth=2, color='green')
+plt.title('USD Value of Liquidity Pool Over Simulation Days')
+plt.xlabel('Day')
+plt.ylabel('Liquidity Pool Value (USD)')
+plt.grid(True, linestyle='--', alpha=0.7)
+
 plt.tight_layout()
 plt.show()
 
-# Summary statistics for RDPX price in USD
 final_usd_prices = [res['usd_prices'][-1] for res in results]
-summary_df = pd.DataFrame({
-    'Final RDPX Price (USD)': final_usd_prices,
-})
-
+summary_df = pd.DataFrame({'Final RDPX Price (USD)': final_usd_prices})
 summary_stats = summary_df.describe(percentiles=[0.5]).transpose()[['mean', '50%', 'min', 'max']]
 summary_stats.columns = ['Average', 'Median', 'Min', 'Max']
 print(summary_stats)
 
-############This section will allow for sensitivity analysis on key inputs
 parameter_name = 're_lp_factor'
 min_value = 0.09
 max_value = 0.5
 step_size = 0.02
+sensitivity_results = sensitivity_analysis(parameter_name, min_value, max_value, step_size, max_pool_usd_value)
 
-sensitivity_results = sensitivity_analysis(parameter_name, min_value, max_value, step_size)
-
-# Visualize the results for sensitivity analysis
+plt.figure(figsize=(12, 5))
 for value, results in sensitivity_results.items():
     plt.plot(days, results['usd_prices'], label=f'{parameter_name}={value}', linewidth=2)
 plt.title(f'Sensitivity Analysis for {parameter_name}')
